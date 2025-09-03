@@ -2,57 +2,63 @@
 ## Mariner_정찬수 ##
 
 import zipfile
+import zlib
 import itertools
-from multiprocessing import Process
-import multiprocessing as mp
-
+import string
+import time
+import datetime
 
 ZIPFILE = "emergency_storage_key.zip"
-TARGET  = "password.txt"
-STOP = mp.Event()
-
+LENGTH = 6
 
 def unlock_zip():
-    chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+    chars = string.ascii_lowercase + string.digits
+    if not zipfile.is_zipfile(ZIPFILE):
+        print("The file is not a zip file.")
+        return
+
     with zipfile.ZipFile(ZIPFILE, "r") as zf:
-        for candidate in itertools.product(chars, repeat=6):
-            if STOP.is_set():
-                break
-            password = "".join(candidate).encode("utf-8")
+        file_list = zf.namelist()
+        if not file_list:
+            print("No files found in the zip.")
+            return
+
+        cnt = 0
+        target_file = file_list[0] ## password.txt
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        start = time.time()
+        for candidate in itertools.product(chars, repeat=LENGTH):
+            cur = time.time()
+            lapsed = round((cur - start), 2)
+            cnt += 1
+
+            # password = "m" + "".join(candidate)
+            # password = password.encode('utf-8')
+            password = "".join(candidate).encode('utf-8')   
             try:
-                ans = zf.read(TARGET, pwd=password)
-                if ans:
-                    zf.extract(TARGET, path="./unzipped", pwd=password)
-                    print("✅ Unlock success:", password.decode())
-                    STOP.set()
-                    break
-            except Exception:
+                ret = zf.read(target_file, pwd=password)
+                if ret:
+                    zf.extract(target_file, pwd=password)
+                    end = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    print(f"\nSuccess! The password is: {password.decode()} Ended at: {end} Lapsed: {lapsed} seconds")
+                    return
+
+            except (RuntimeError, zipfile.BadZipFile, zlib.error):
+                print(f"Tried: {password} Count: {cnt} Start: {now} Lapsed: {lapsed}", end='\r')
                 continue
+            except Exception:
+                return
+    print("Password not found.")
+    return
 
 def main():
     try:
-        procs = []
-        for _ in range(12):
-            procs.append(Process(target=unlock_zip))
-        for p in procs:
-            p.start()
-        for p in procs:
-            p.join()
-
+        unlock_zip()
+    except Exception:
+        print("Unlock failed")
     except KeyboardInterrupt:
-        print('\nMain procs stoped by Ctrl + C')
-        STOP.set()
-        for p in procs:
-            p.join()
-    except Exception as e:
-        print(f"Error: {e}")
-        STOP.set()
-        for p in procs:
-            p.join()
+        print("\nCtrl + C interrupted")
+
 
 if __name__ == "__main__":
     main()
-
-
-        
-
