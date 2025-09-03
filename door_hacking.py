@@ -51,9 +51,47 @@ def unlock_zip():
     print("Password not found.")
     return
 
+def caesar_cipher_decode(target_text: str):
+    alphabet = string.ascii_uppercase
+
+    for shift in range(len(alphabet)):  # 0 ~ 25
+        decoded = ""
+        for char in target_text:
+            if char.isalpha():
+                is_upper = char.isupper()
+                base = ord('A') if is_upper else ord('a')
+                decoded += chr((ord(char) - base - shift) % 26 + base) # 파이썬에서는 모드연산이 음수도 가능(자동으로 양수로 바꿔줌)
+            else:
+                decoded += char
+        print(f"[Shift {shift}] {decoded}")
+
+def caesar_cipher_main():
+    with open("password.txt", "r", encoding="utf-8") as f:
+        encrypted_text = f.read().strip()
+
+    print("암호화된 문자열:", encrypted_text)
+    caesar_cipher_decode(encrypted_text)
+
+    shift_num = int(input("\n정답이라고 생각되는 Shift 번호를 입력하세요: "))
+
+    final_result = ""
+    for char in encrypted_text:
+        if char.isalpha():
+            is_upper = char.isupper()
+            base = ord('A') if is_upper else ord('a')
+            final_result += chr((ord(char) - base - shift_num) % 26 + base)
+        else:
+            final_result += char
+
+    with open("result.txt", "w", encoding="utf-8") as f:
+        f.write(final_result)
+
+    print("\n최종 해독 결과가 result.txt에 저장되었습니다.")
+
 def main():
     try:
-        unlock_zip()
+        #unlock_zip()
+        caesar_cipher_main()
     except Exception:
         print("Unlock failed")
     except KeyboardInterrupt:
