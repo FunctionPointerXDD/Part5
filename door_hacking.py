@@ -1,6 +1,7 @@
 ## codyssey part5 - 1 ##
 ## Mariner_정찬수 ##
 
+import os
 import zipfile
 import zlib
 import string
@@ -29,13 +30,13 @@ def gen_code(x: int):
 def unlock_zip(pid: int):
     if not zipfile.is_zipfile(ZIPFILE):
         print("The file is not a zip file.")
-        return
+        os._exit(1)
 
     with zipfile.ZipFile(ZIPFILE, "r") as zf:
         file_list = zf.namelist()
         if not file_list:
             print("No files found in the zip.")
-            return
+            os._exit(1)
 
         cnt = 0
         target_file = file_list[0] ## password.txt
@@ -44,7 +45,7 @@ def unlock_zip(pid: int):
         idx = int(N / PROCS * pid)
         for i in range(idx, N):
             if STOP.is_set():
-                return
+                os._exit(0)
             candidate = gen_code(i)
             cur = time.time()
             lapsed = round((cur - start), 2)
@@ -58,16 +59,16 @@ def unlock_zip(pid: int):
                     end = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     print(f"\nSuccess! The password is: {password.decode()} Ended at: {end} Lapsed: {lapsed} seconds")
                     STOP.set()
-                    return
+                    os._exit(0)
 
             except (RuntimeError, zipfile.BadZipFile, zlib.error):
                 print(f"pid: {pid} Tried: {password} Count: {cnt} Start: {now} Lapsed: {lapsed}", end='\r')
                 continue
             except (KeyboardInterrupt, Exception):
                 STOP.set()
-                return
+                os._exit(1)
     print("Password not found.")
-    return
+    os._exit(0)
 
 def unlock_zip_main():
     try:
@@ -103,37 +104,35 @@ def caesar_cipher_decode(target_text: str):
         print(f"[Shift {shift}] {decoded}")
 
 def caesar_cipher_main():
-    with open("password.txt", "r", encoding="utf-8") as f:
-        encrypted_text = f.read().strip()
+    try:
+        with open("password.txt", "r", encoding="utf-8") as f:
+            encrypted_text = f.read().strip()
 
-    print("암호화된 문자열:", encrypted_text)
-    caesar_cipher_decode(encrypted_text)
+        print("암호화된 문자열:", encrypted_text)
+        caesar_cipher_decode(encrypted_text)
 
-    shift_num = int(input("\n정답이라고 생각되는 Shift 번호를 입력하세요: "))
+        shift_num = int(input("\n정답이라고 생각되는 Shift 번호를 입력하세요: "))
 
-    final_result = ""
-    for char in encrypted_text:
-        if char.isalpha():
-            is_upper = char.isupper()
-            base = ord('A') if is_upper else ord('a')
-            final_result += chr((ord(char) - base - shift_num) % 26 + base)
-        else:
-            final_result += char
+        final_result = ""
+        for char in encrypted_text:
+            if char.isalpha():
+                is_upper = char.isupper()
+                base = ord('A') if is_upper else ord('a')
+                final_result += chr((ord(char) - base - shift_num) % 26 + base)
+            else:
+                final_result += char
 
-    with open("result.txt", "w", encoding="utf-8") as f:
-        f.write(final_result)
+        with open("result.txt", "w", encoding="utf-8") as f:
+            f.write(final_result)
 
-    print("\n최종 해독 결과가 result.txt에 저장되었습니다.")
+        print("\n최종 해독 결과가 result.txt에 저장되었습니다.")
+
+    except Exception as e:
+        print(f"[caesar] Error: {e}")
 
 def main():
-    try:
-        unlock_zip_main()
-        #caesar_cipher_main()
-    except Exception as e:
-        print(f"Error: {e}")
-    except KeyboardInterrupt:
-        print("\nCtrl + C interrupted")
-
+    unlock_zip_main()
+    caesar_cipher_main()
 
 if __name__ == "__main__":
     main()
