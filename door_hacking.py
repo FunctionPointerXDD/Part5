@@ -3,16 +3,30 @@
 
 import zipfile
 import zlib
-import itertools
 import string
 import time
 import datetime
+from multiprocessing import Process
+import multiprocessing as mp
 
 ZIPFILE = "emergency_storage_key.zip"
+ALPHABET_DIGIT = string.ascii_lowercase + string.digits # 자리수 36개
 LENGTH = 6
+N = 36 ** LENGTH
+PROCS = 6
+STOP = mp.Event()
 
-def unlock_zip():
-    chars = string.ascii_lowercase + string.digits
+def gen_code(x: int):
+    base = len(ALPHABET_DIGIT)
+    code = []
+
+    for _ in range(LENGTH):
+        x, r = divmod(x, base) # ALPHABET_DIGIT을 36진법으로 해석
+        code.append(ALPHABET_DIGIT[r])
+
+    return reversed(code)
+
+def unlock_zip(pid: int):
     if not zipfile.is_zipfile(ZIPFILE):
         print("The file is not a zip file.")
         return
@@ -27,13 +41,15 @@ def unlock_zip():
         target_file = file_list[0] ## password.txt
         now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         start = time.time()
-        for candidate in itertools.product(chars, repeat=LENGTH):
+        idx = int(N / PROCS * pid)
+        for i in range(idx, N):
+            if STOP.is_set():
+                return
+            candidate = gen_code(i)
             cur = time.time()
             lapsed = round((cur - start), 2)
             cnt += 1
 
-            # password = "m" + "".join(candidate)
-            # password = password.encode('utf-8')
             password = "".join(candidate).encode('utf-8')   
             try:
                 ret = zf.read(target_file, pwd=password)
@@ -41,16 +57,37 @@ def unlock_zip():
                     zf.extract(target_file, pwd=password)
                     end = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     print(f"\nSuccess! The password is: {password.decode()} Ended at: {end} Lapsed: {lapsed} seconds")
+                    STOP.set()
                     return
 
             except (RuntimeError, zipfile.BadZipFile, zlib.error):
-                print(f"Tried: {password} Count: {cnt} Start: {now} Lapsed: {lapsed}", end='\r')
+                print(f"pid: {pid} Tried: {password} Count: {cnt} Start: {now} Lapsed: {lapsed}", end='\r')
                 continue
-            except Exception:
+            except (KeyboardInterrupt, Exception):
+                STOP.set()
                 return
     print("Password not found.")
     return
 
+def unlock_zip_main():
+    try:
+        proc_list = []    
+        for rank in range(PROCS):
+            p = Process(target=unlock_zip, args=(rank,))
+            p.start()
+            proc_list.append(p)
+        for p in proc_list:
+            p.join()
+
+    except KeyboardInterrupt:
+        for p in proc_list:
+            p.join()
+    except Exception:
+        for p in proc_list:
+            p.join()
+
+# 카이사르 암호는 영문자를 특정 숫자 만큼 모두 양의 값만큼 옮겨서(shift) 만드는 암호다.
+# 따라서 반대로 옮겨진 값만큼 이동시켜서 의미있는 문장인지 확인하면 된다.
 def caesar_cipher_decode(target_text: str):
     alphabet = string.ascii_uppercase
 
@@ -90,10 +127,10 @@ def caesar_cipher_main():
 
 def main():
     try:
-        #unlock_zip()
-        caesar_cipher_main()
-    except Exception:
-        print("Unlock failed")
+        unlock_zip_main()
+        #caesar_cipher_main()
+    except Exception as e:
+        print(f"Error: {e}")
     except KeyboardInterrupt:
         print("\nCtrl + C interrupted")
 
