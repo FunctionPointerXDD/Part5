@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from functools import partial
+from decimal import Decimal, getcontext
 
 
 OPERATORS = {'÷', 'x', '-', '+', '%'}
@@ -24,9 +25,23 @@ class IPhoneLikeCalculator(QWidget):
         self._operand = None
         self._operator = None
         self._waiting_for_new = False
+        self.process_display.setText("")
 
     def init_ui(self):
         root = QVBoxLayout(self)
+
+        # 연산 과정 표시용 (상단, 회색, 작은 글씨)
+        self.process_display = QLineEdit()
+        self.process_display.setReadOnly(True)
+        self.process_display.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.process_display.setText("")
+        self.process_display.setStyleSheet(
+            "QLineEdit {"
+            "  font-size: 18px; padding: 4px 16px 0px 16px; border: none; "
+            "  background:#000; color:#aaa;"
+            "}"
+        )
+        root.addWidget(self.process_display)
 
         # 디스플레이 (우측 정렬, 읽기 전용)
         self.display = QLineEdit()
@@ -83,9 +98,9 @@ class IPhoneLikeCalculator(QWidget):
 
                 # 이벤트 연결
                 if label == "AC":
-                    btn.clicked.connect(self.on_clear)
+                    btn.clicked.connect(self.reset)
                 elif label == "+/-":
-                    btn.clicked.connect(self.on_toggle_sign)
+                    btn.clicked.connect(self.negative_positive)
                 else:
                     btn.clicked.connect(partial(self.on_input, label))
 
@@ -100,7 +115,7 @@ class IPhoneLikeCalculator(QWidget):
         self.resize(380, 600)
 
     # ---------- 이벤트 핸들러 ----------
-    def on_clear(self):
+    def reset(self):
         self.display.setText("0")
         self.reset_state()
 
@@ -112,7 +127,7 @@ class IPhoneLikeCalculator(QWidget):
             self._on_equal()
             return
         elif text == "%":
-            self._on_percent()
+            self.percent()
             return
 
         cur = self.display.text()
@@ -127,9 +142,13 @@ class IPhoneLikeCalculator(QWidget):
 
         # 처음이 '0'이고 숫자 또는 '.'이 들어오면 대체
         if cur == "0":
-            if text.isdigit() or text == ".":
+            if text.isdigit():
                 self.display.setText(text)
                 return
+            if text == ".":
+                self.display.setText("0.")
+                return
+
             self.display.setText(cur + text)
             return
 
@@ -153,6 +172,7 @@ class IPhoneLikeCalculator(QWidget):
         self._operand = value
         self._operator = op
         self._waiting_for_new = True
+        self.process_display.setText(f"{self._format_result(self._operand)} {op}")
 
     def _on_equal(self):
         if self._operator is None or self._operand is None:
@@ -162,12 +182,13 @@ class IPhoneLikeCalculator(QWidget):
         except Exception:
             right = 0.0
         result = self._calculate(self._operand, right, self._operator)
+        self.process_display.setText(f"{self._format_result(self._operand)} {self._operator} {self._format_result(right)} =")
         self.display.setText(self._format_result(result))
         self._operand = None
         self._operator = None
         self._waiting_for_new = True
 
-    def _on_percent(self):
+    def percent(self):
         cur = self.display.text()
         try:
             value = float(cur)
@@ -178,28 +199,47 @@ class IPhoneLikeCalculator(QWidget):
 
     def _calculate(self, left, right, op):
         try:
+            getcontext().prec = 15 # 정밀도는 소수점 자리까지 설정
             if op == "+":
-                return left + right
+                return self.add(left, right)
             elif op == "-":
-                return left - right
+                return self.subtract(left, right)
             elif op == "x":
-                return left * right
+                return self.multiply(left, right)
             elif op == "÷":
                 if right == 0:
                     return "Error"
-                return left / right
+                return self.divide(left, right)   
         except Exception:
             return "Error"
+    
+    def add(self, left, right) -> Decimal:
+        return Decimal(left) + Decimal(right)
+
+    def subtract(self, left, right) -> Decimal:
+        return Decimal(left) - Decimal(right)
+    
+    def multiply(self, left, right) -> Decimal:
+        return Decimal(left) * Decimal(right)
+    
+    def divide(self, left, right) -> Decimal:
+        return Decimal(left) / Decimal(right)   
 
     def _format_result(self, value):
         if isinstance(value, str):
             return value
-        if int(value) == value:
-            return str(int(value))
-        else:
+        try:
+            fval = float(value)
+            if int(fval) == fval:
+                return str(int(fval))
+            else:
+                return f"{fval:.10g}"
+        except Exception:
             return str(value)
 
-    def on_toggle_sign(self):
+        
+
+    def negative_positive(self):
         s = self.display.text()
         if s == "0":
             return
