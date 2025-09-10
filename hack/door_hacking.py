@@ -28,47 +28,48 @@ def gen_code(x: int):
     return reversed(code)
 
 def unlock_zip(pid: int):
-    if not zipfile.is_zipfile(ZIPFILE):
-        print("The file is not a zip file.")
-        os._exit(1)
-
-    with zipfile.ZipFile(ZIPFILE, "r") as zf:
-        file_list = zf.namelist()
-        if not file_list:
-            print("No files found in the zip.")
+    try:
+        if not zipfile.is_zipfile(ZIPFILE):
+            print("The file is not a zip file.")
             os._exit(1)
 
-        cnt = 0
-        target_file = file_list[0] ## password.txt
-        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        start = time.time()
-        idx = int(N / PROCS * pid)
-        for i in range(idx, N):
-            if STOP.is_set():
-                os._exit(0)
-            candidate = gen_code(i)
-            cur = time.time()
-            lapsed = round((cur - start), 2)
-            cnt += 1
-
-            password = "".join(candidate).encode('utf-8')   
-            try:
-                ret = zf.read(target_file, pwd=password)
-                if ret:
-                    zf.extract(target_file, pwd=password)
-                    end = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    print(f"\nSuccess! The password is: {password.decode()} Ended at: {end} Lapsed: {lapsed} seconds")
-                    STOP.set()
-                    os._exit(0)
-
-            except (RuntimeError, zipfile.BadZipFile, zlib.error):
-                print(f"pid: {pid} Tried: {password} Count: {cnt} Start: {now} Lapsed: {lapsed}", end='\r')
-                continue
-            except (KeyboardInterrupt, Exception):
-                STOP.set()
+        with zipfile.ZipFile(ZIPFILE, "r") as zf:
+            file_list = zf.namelist()
+            if not file_list:
+                print("No files found in the zip.")
                 os._exit(1)
-    print("Password not found.")
-    os._exit(0)
+
+            cnt = 0
+            target_file = file_list[0] ## password.txt
+            now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            start = time.time()
+            idx = int(N / PROCS * pid)
+            for i in range(idx, N):
+                if STOP.is_set():
+                    os._exit(1)
+                candidate = gen_code(i)
+                cur = time.time()
+                lapsed = round((cur - start), 2)
+                cnt += 1
+
+                password = "".join(candidate).encode('utf-8')   
+                try:
+                    ret = zf.read(target_file, pwd=password)
+                    if ret:
+                        zf.extract(target_file, pwd=password)
+                        end = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        print(f"\nSuccess! The password is: {password.decode()} Ended at: {end} Lapsed: {lapsed} seconds")
+                        STOP.set()
+                        os._exit(0)
+
+                except (RuntimeError, zipfile.BadZipFile, zlib.error):
+                    print(f"pid: {pid} Tried: {password} Count: {cnt} Start: {now} Lapsed: {lapsed}", end='\r')
+                    continue
+        print("Password not found.")
+
+    except (RuntimeError, KeyboardInterrupt):
+        zf.close()
+        os._exit(1)
 
 def unlock_zip_main():
     try:
@@ -81,11 +82,20 @@ def unlock_zip_main():
             p.join()
 
     except KeyboardInterrupt:
+        print("\r\nMain process stopped by Ctrl-C...")
+        STOP.set()
         for p in proc_list:
             p.join()
+        for p in proc_list:
+            if p.is_alive():
+                p.terminate()
     except Exception:
+        STOP.set()
         for p in proc_list:
             p.join()
+        for p in proc_list:
+            if p.is_alive():
+                p.terminate()
 
 # 카이사르 암호는 영문자를 특정 숫자 만큼 모두 양의 값만큼 옮겨서(shift) 만드는 암호다.
 # 따라서 반대로 옮겨진 값만큼 이동시켜서 의미있는 문장인지 확인하면 된다.

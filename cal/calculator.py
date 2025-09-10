@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-PyQt6로 구현한 iPhone(세로모드) 계산기와 '유사한' UI 데모.
-- 버튼 배치/출력 형태를 iPhone과 동일하게 구성 (색/모양은 동일할 필요 없음)
-- 각 버튼 클릭 시 디스플레이에 입력만 표시(계산 기능은 구현하지 않음)
-  - "AC": 표시 초기화
-  - "+/-": 현재 입력 중인 숫자의 부호 토글 (간단 처리)
-  - 나머지 연산자/숫자/점: 그대로 표시(이어붙임)
-"""
 
 import sys
 import re
-from PyQt6.QtWidgets import (
+from PyQt5.QtWidgets import (
     QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QLineEdit, QSizePolicy
 )
-from PyQt6.QtCore import Qt
+from PyQt5.QtCore import Qt
+from functools import partial
 
 
-OPERATORS = {'÷', '×', '−', '+', '%'}
+OPERATORS = {'÷', 'x', '-', '+', '%'}
 
 
 class IPhoneLikeCalculator(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Calculator (iPhone-like, PyQt6)")
+        self.setWindowTitle("Calculator (iPhone-like, PyQt5)")
         self.init_ui()
+        self.reset_state()
+
+    def reset_state(self):
+        self._operand = None
+        self._operator = None
+        self._waiting_for_new = False
 
     def init_ui(self):
         root = QVBoxLayout(self)
@@ -50,11 +49,11 @@ class IPhoneLikeCalculator(QWidget):
         # 행 구성
         rows = [
             ["AC", "+/-", "%", "÷"],
-            ["7", "8", "9", "×"],
-            ["4", "5", "6", "−"],
+            ["7", "8", "9", "x"],
+            ["4", "5", "6", "-"],
             ["1", "2", "3", "+"],
             # 마지막 줄: 0이 두 칸 차지
-            ["0", ".", "="],
+            ["T", "0", ".", "="],
         ]
 
         # 버튼 생성
@@ -71,7 +70,7 @@ class IPhoneLikeCalculator(QWidget):
                         "QPushButton {background:#a6a6a6; color:#000; border:none; border-radius:16px; font-size:22px; padding:10px;}"
                         "QPushButton:pressed {background:#8e8e8e;}"
                     )
-                elif label in {"÷", "×", "−", "+", "="}:
+                elif label in {"÷", "x", "-", "+", "="}:
                     btn.setStyleSheet(
                         "QPushButton {background:#ff9f0a; color:#fff; border:none; border-radius:16px; font-size:26px; padding:10px;}"
                         "QPushButton:pressed {background:#d18208;}"
@@ -88,15 +87,9 @@ class IPhoneLikeCalculator(QWidget):
                 elif label == "+/-":
                     btn.clicked.connect(self.on_toggle_sign)
                 else:
-                    btn.clicked.connect(lambda _, t=label: self.on_input(t))
+                    btn.clicked.connect(partial(self.on_input, label))
 
-                # 0 버튼은 두 칸(가로) 차지
-                if r == 4 and label == "0":
-                    grid.addWidget(btn, r, 0, 1, 2)  # row, col, rowSpan, colSpan
-                else:
-                    # 마지막 줄은 인덱스 보정(0이 2칸이므로 .은 col=2, =은 col=3에 해당)
-                    col = c if not (r == 4 and c > 0) else c + 1
-                    grid.addWidget(btn, r, col)
+                grid.addWidget(btn, r, c)
 
         root.addLayout(grid)
 
@@ -109,20 +102,34 @@ class IPhoneLikeCalculator(QWidget):
     # ---------- 이벤트 핸들러 ----------
     def on_clear(self):
         self.display.setText("0")
+        self.reset_state()
 
     def on_input(self, text: str):
-        """
-        숫자/연산자/점을 디스플레이에 '표시'만 한다.
-        = 버튼도 이번 과제에서는 단순히 기호를 표시만 한다.
-        """
+        if text in {"+", "-", "x", "÷"}:
+            self._on_operator(text)
+            return
+        elif text == "=":
+            self._on_equal()
+            return
+        elif text == "%":
+            self._on_percent()
+            return
+
         cur = self.display.text()
+        # 새 입력 시작(연산자 직후)
+        if self._waiting_for_new:
+            if text == ".":
+                self.display.setText("0.")
+            else:
+                self.display.setText(text)
+            self._waiting_for_new = False
+            return
 
         # 처음이 '0'이고 숫자 또는 '.'이 들어오면 대체
         if cur == "0":
             if text.isdigit() or text == ".":
                 self.display.setText(text)
                 return
-            # 그 외(연산자 포함)는 이어붙임
             self.display.setText(cur + text)
             return
 
@@ -133,16 +140,72 @@ class IPhoneLikeCalculator(QWidget):
 
         self.display.setText(cur + text)
 
+    def _on_operator(self, op):
+        cur = self.display.text()
+        try:
+            value = float(cur)
+        except Exception:
+            value = 0.0
+        if self._operator and not self._waiting_for_new:
+            # 연산자 연속 입력이 아니면 이전 연산 처리
+            self._on_equal()
+            value = float(self.display.text())
+        self._operand = value
+        self._operator = op
+        self._waiting_for_new = True
+
+    def _on_equal(self):
+        if self._operator is None or self._operand is None:
+            return
+        try:
+            right = float(self.display.text())
+        except Exception:
+            right = 0.0
+        result = self._calculate(self._operand, right, self._operator)
+        self.display.setText(self._format_result(result))
+        self._operand = None
+        self._operator = None
+        self._waiting_for_new = True
+
+    def _on_percent(self):
+        cur = self.display.text()
+        try:
+            value = float(cur)
+            value = value / 100.0
+            self.display.setText(self._format_result(value))
+        except Exception:
+            pass
+
+    def _calculate(self, left, right, op):
+        try:
+            if op == "+":
+                return left + right
+            elif op == "-":
+                return left - right
+            elif op == "x":
+                return left * right
+            elif op == "÷":
+                if right == 0:
+                    return "Error"
+                return left / right
+        except Exception:
+            return "Error"
+
+    def _format_result(self, value):
+        if isinstance(value, str):
+            return value
+        if int(value) == value:
+            return str(int(value))
+        else:
+            return str(value)
+
     def on_toggle_sign(self):
-        """
-        마지막 '피연산자'의 부호를 간단히 토글한다.
-        실제 계산 로직 없이, 표시 문자열만 수정.
-        """
         s = self.display.text()
         if s == "0":
             return
 
         # 마지막 숫자 토큰(부호/소수점 포함)을 찾는다.
+        # 연산자(÷ × − + %)를 기준으로 split하되, 마지막 토큰을 대상으로 한다.
         tokens = re.split(r"[÷×−+\%]", s)
         if not tokens:
             return
@@ -160,13 +223,13 @@ class IPhoneLikeCalculator(QWidget):
         idx = s.rfind(last)
         if idx != -1:
             s = s[:idx] + new_last + s[idx + len(last):]
+            # 맨 앞이 비어버렸다면 안전 처리
             if not s:
                 s = "0"
             self.display.setText(s)
 
-    # ---------- 헬퍼 ----------
     def _current_number_has_dot(self, text: str) -> bool:
-        """마지막 숫자 토큰이 이미 소수점을 포함하는지 확인"""
+        # 마지막 숫자 토큰이 이미 소수점을 포함하는지 확인
         tokens = re.split(r"[÷×−+\%]", text)
         if not tokens:
             return False
@@ -178,7 +241,7 @@ def main():
     app = QApplication(sys.argv)
     w = IPhoneLikeCalculator()
     w.show()
-    sys.exit(app.exec())
+    sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
