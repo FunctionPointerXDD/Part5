@@ -1,23 +1,19 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+## codyssey part5 - 2 [calculator] ##
+## Mariner_정찬수 ##
 
 import sys
-import re
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QLineEdit, QSizePolicy
 )
 from PyQt5.QtCore import Qt
-from functools import partial
-from decimal import Decimal, getcontext
+from decimal import Decimal, getcontext # 소수점 연산 정확도 보정
+import re
 
 
-OPERATORS = {'÷', 'x', '-', '+', '%'}
-
-
-class IPhoneLikeCalculator(QWidget):
+class Calculator(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Calculator (iPhone-like, PyQt5)")
+        self.setWindowTitle("Calculator")
         self.init_ui()
         self.reset_state()
 
@@ -36,10 +32,7 @@ class IPhoneLikeCalculator(QWidget):
         self.process_display.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.process_display.setText("")
         self.process_display.setStyleSheet(
-            "QLineEdit {"
-            "  font-size: 18px; padding: 4px 16px 0px 16px; border: none; "
-            "  background:#000; color:#aaa;"
-            "}"
+            "font-size: 18px; padding: 4px 16px 0px 16px; border: none; background:#000; color:#aaa;"
         )
         root.addWidget(self.process_display)
 
@@ -49,10 +42,7 @@ class IPhoneLikeCalculator(QWidget):
         self.display.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.display.setText("0")
         self.display.setStyleSheet(
-            "QLineEdit {"
-            "  font-size: 36px; padding: 16px; border: none; "
-            "  background:#111; color:#fff;"
-            "}"
+            "font-size: 36px; padding: 16px; border: none; background:#111; color:#fff;"
         )
         root.addWidget(self.display)
 
@@ -67,7 +57,6 @@ class IPhoneLikeCalculator(QWidget):
             ["7", "8", "9", "x"],
             ["4", "5", "6", "-"],
             ["1", "2", "3", "+"],
-            # 마지막 줄: 0이 두 칸 차지
             ["T", "0", ".", "="],
         ]
 
@@ -75,44 +64,48 @@ class IPhoneLikeCalculator(QWidget):
         for r, row in enumerate(rows):
             for c, label in enumerate(row):
                 btn = QPushButton(label)
-                btn.setCursor(Qt.CursorShape.PointingHandCursor)
-                btn.setMinimumSize(72, 64)
+                btn.setMinimumSize(80, 60)
                 btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
                 # 간단한 스타일링: 상단 유틸/숫자/연산자 구분
                 if label in {"AC", "+/-", "%"}:
                     btn.setStyleSheet(
-                        "QPushButton {background:#a6a6a6; color:#000; border:none; border-radius:16px; font-size:22px; padding:10px;}"
-                        "QPushButton:pressed {background:#8e8e8e;}"
+                        "background:#a6a6a6; color:#000; border:none; border-radius:16px; font-size:22px; padding:10px;"
                     )
                 elif label in {"÷", "x", "-", "+", "="}:
                     btn.setStyleSheet(
-                        "QPushButton {background:#ff9f0a; color:#fff; border:none; border-radius:16px; font-size:26px; padding:10px;}"
-                        "QPushButton:pressed {background:#d18208;}"
+                        "background:#ff9f0a; color:#fff; border:none; border-radius:16px; font-size:26px; padding:10px;"
                     )
                 else:
                     btn.setStyleSheet(
-                        "QPushButton {background:#333; color:#fff; border:none; border-radius:16px; font-size:24px; padding:10px;}"
-                        "QPushButton:pressed {background:#262626;}"
+                        "background:#333; color:#fff; border:none; border-radius:16px; font-size:24px; padding:10px;"
                     )
-
+                    
                 # 이벤트 연결
                 if label == "AC":
                     btn.clicked.connect(self.reset)
                 elif label == "+/-":
                     btn.clicked.connect(self.negative_positive)
+                elif label == 'T':
+                    pass
                 else:
-                    btn.clicked.connect(partial(self.on_input, label))
+                    btn.clicked.connect(self._input_wrapper(label))
 
                 grid.addWidget(btn, r, c)
 
         root.addLayout(grid)
 
         # 전체 배경
-        self.setStyleSheet("QWidget { background:#000; }")
+        self.setStyleSheet("background: #000")
 
         # 기본 창 크기
         self.resize(380, 600)
+    
+    # on_input 메서드 래핑 -> 함수 객체 반환
+    def _input_wrapper(self, text):
+        def _wrapper():
+            return self.on_input(text)
+        return _wrapper  
 
     # ---------- 이벤트 핸들러 ----------
     def reset(self):
@@ -124,22 +117,13 @@ class IPhoneLikeCalculator(QWidget):
             self._on_operator(text)
             return
         elif text == "=":
-            self._on_equal()
+            self.equal()
             return
         elif text == "%":
             self.percent()
             return
 
         cur = self.display.text()
-        # 새 입력 시작(연산자 직후)
-        if self._waiting_for_new:
-            if text == ".":
-                self.display.setText("0.")
-            else:
-                self.display.setText(text)
-            self._waiting_for_new = False
-            return
-
         # 처음이 '0'이고 숫자 또는 '.'이 들어오면 대체
         if cur == "0":
             if text.isdigit():
@@ -150,6 +134,15 @@ class IPhoneLikeCalculator(QWidget):
                 return
 
             self.display.setText(cur + text)
+            return
+
+        # 새 입력 시작(operator 이후) 
+        if self._waiting_for_new:
+            if text == ".":
+                self.display.setText("0.")
+            else:
+                self.display.setText(text)
+            self._waiting_for_new = False
             return
 
         # 연속된 '.' 방지(현재 마지막 토큰이 소수점 포함이면 무시)
@@ -167,14 +160,14 @@ class IPhoneLikeCalculator(QWidget):
             value = 0.0
         if self._operator and not self._waiting_for_new:
             # 연산자 연속 입력이 아니면 이전 연산 처리
-            self._on_equal()
+            self.equal()
             value = float(self.display.text())
         self._operand = value
         self._operator = op
         self._waiting_for_new = True
         self.process_display.setText(f"{self._format_result(self._operand)} {op}")
 
-    def _on_equal(self):
+    def equal(self):
         if self._operator is None or self._operand is None:
             return
         try:
@@ -199,7 +192,7 @@ class IPhoneLikeCalculator(QWidget):
 
     def _calculate(self, left, right, op):
         try:
-            getcontext().prec = 15 # 정밀도는 소수점 자리까지 설정
+            getcontext().prec = 15 # 정밀도를 소수점 자리까지 설정
             if op == "+":
                 return self.add(left, right)
             elif op == "-":
@@ -233,43 +226,21 @@ class IPhoneLikeCalculator(QWidget):
             if int(fval) == fval:
                 return str(int(fval))
             else:
-                return f"{fval:.10g}"
+                return f"{fval:.15g}"
         except Exception:
             return str(value)
-
-        
 
     def negative_positive(self):
         s = self.display.text()
         if s == "0":
             return
-
-        # 마지막 숫자 토큰(부호/소수점 포함)을 찾는다.
-        # 연산자(÷ × − + %)를 기준으로 split하되, 마지막 토큰을 대상으로 한다.
-        tokens = re.split(r"[÷×−+\%]", s)
-        if not tokens:
-            return
-        last = tokens[-1]
-        if not last:
-            return
-
-        # 토큰 시작에 '-'가 있으면 제거, 없으면 추가
-        if last.startswith("-"):
-            new_last = last[1:]
+        if s.startswith("-"):
+            s = s[1:]
         else:
-            new_last = "-" + last
-
-        # s의 뒤에서 last를 찾아 치환(오른쪽만 1회 대체)
-        idx = s.rfind(last)
-        if idx != -1:
-            s = s[:idx] + new_last + s[idx + len(last):]
-            # 맨 앞이 비어버렸다면 안전 처리
-            if not s:
-                s = "0"
-            self.display.setText(s)
+            s = "-" + s
+        self.display.setText(s)
 
     def _current_number_has_dot(self, text: str) -> bool:
-        # 마지막 숫자 토큰이 이미 소수점을 포함하는지 확인
         tokens = re.split(r"[÷×−+\%]", text)
         if not tokens:
             return False
@@ -279,7 +250,7 @@ class IPhoneLikeCalculator(QWidget):
 
 def main():
     app = QApplication(sys.argv)
-    w = IPhoneLikeCalculator()
+    w = Calculator()
     w.show()
     sys.exit(app.exec_())
 

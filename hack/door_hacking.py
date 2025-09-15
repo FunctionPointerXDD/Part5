@@ -7,7 +7,7 @@ import zlib
 import string
 import time
 import datetime
-from multiprocessing import Process
+from multiprocessing import Process, Lock
 import multiprocessing as mp
 
 ZIPFILE = "emergency_storage_key.zip"
@@ -16,6 +16,8 @@ LENGTH = 6
 N = 36 ** LENGTH
 PROCS = 6
 STOP = mp.Event()
+
+_cnt = 0
 
 def gen_code(x: int):
     base = len(ALPHABET_DIGIT)
@@ -27,19 +29,22 @@ def gen_code(x: int):
 
     return reversed(code)
 
-def unlock_zip(pid: int):
+def unlock_zip(pid, lock):
+    global _cnt
+
     try:
         if not zipfile.is_zipfile(ZIPFILE):
-            print("The file is not a zip file.")
+            with lock:
+                print("The file is not a zip file.")
             os._exit(1)
 
         with zipfile.ZipFile(ZIPFILE, "r") as zf:
             file_list = zf.namelist()
             if not file_list:
-                print("No files found in the zip.")
+                with lock:
+                    print("No files found in the zip.")
                 os._exit(1)
 
-            cnt = 0
             target_file = file_list[0] ## password.txt
             now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             start = time.time()
@@ -50,32 +55,40 @@ def unlock_zip(pid: int):
                 candidate = gen_code(i)
                 cur = time.time()
                 lapsed = round((cur - start), 2)
-                cnt += 1
+
+                with lock:
+                    _cnt += 1
 
                 password = "".join(candidate).encode('utf-8')   
                 try:
                     ret = zf.read(target_file, pwd=password)
                     if ret:
+                        STOP.set()
                         zf.extract(target_file, pwd=password)
                         end = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        print(f"\nSuccess! The password is: {password.decode()} Ended at: {end} Lapsed: {lapsed} seconds")
-                        STOP.set()
+                        msg = f"\nSuccess! The password is: {password.decode()} pid: {pid} Ended at: {end} Lapsed: {lapsed} seconds".encode('utf-8')
+                        with lock:
+                            os.write(1, msg)
                         os._exit(0)
 
                 except (RuntimeError, zipfile.BadZipFile, zlib.error):
-                    print(f"pid: {pid} Tried: {password} Count: {cnt} Start: {now} Lapsed: {lapsed}", end='\r')
+                    msg = f"pid: {pid} Tried: {password} Count: {_cnt} Start: {now} Lapsed: {lapsed}\r".encode('utf-8')
+                    with lock:
+                        os.write(1, msg)
                     continue
-        print("Password not found.")
+        with lock:
+            print("Password not found.")
 
     except (RuntimeError, KeyboardInterrupt):
         zf.close()
         os._exit(1)
 
 def unlock_zip_main():
+    lock = Lock()
     try:
         proc_list = []    
         for rank in range(PROCS):
-            p = Process(target=unlock_zip, args=(rank,))
+            p = Process(target=unlock_zip, args=(rank, lock))
             p.start()
             proc_list.append(p)
         for p in proc_list:
@@ -142,7 +155,7 @@ def caesar_cipher_main():
 
 def main():
     unlock_zip_main()
-    caesar_cipher_main()
+    #caesar_cipher_main()
 
 if __name__ == "__main__":
     main()
