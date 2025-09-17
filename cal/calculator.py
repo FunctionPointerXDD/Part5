@@ -6,8 +6,6 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QLineEdit, QSizePolicy
 )
 from PyQt5.QtCore import Qt
-from decimal import Decimal, getcontext # 소수점 연산 정확도 보정
-import re
 
 
 class Calculator(QWidget):
@@ -36,7 +34,7 @@ class Calculator(QWidget):
         )
         root.addWidget(self.process_display)
 
-        # 디스플레이 (우측 정렬, 읽기 전용)
+        # 디스플레이
         self.display = QLineEdit()
         self.display.setReadOnly(True)
         self.display.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -51,7 +49,7 @@ class Calculator(QWidget):
         grid.setHorizontalSpacing(6)
         grid.setVerticalSpacing(6)
 
-        # 행 구성
+        # 버튼 구성
         rows = [
             ["AC", "+/-", "%", "÷"],
             ["7", "8", "9", "x"],
@@ -67,7 +65,7 @@ class Calculator(QWidget):
                 btn.setMinimumSize(80, 60)
                 btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-                # 간단한 스타일링: 상단 유틸/숫자/연산자 구분
+                # 스타일링
                 if label in {"AC", "+/-", "%"}:
                     btn.setStyleSheet(
                         "background:#a6a6a6; color:#000; border:none; border-radius:16px; font-size:22px; padding:10px;"
@@ -93,7 +91,7 @@ class Calculator(QWidget):
 
                 grid.addWidget(btn, r, c)
 
-        root.addLayout(grid)
+        root.addLayout(grid) # 위에서 구현한 모든 그리드 추가
 
         # 전체 배경
         self.setStyleSheet("background: #000")
@@ -124,33 +122,22 @@ class Calculator(QWidget):
             return
 
         cur = self.display.text()
-        # 처음이 '0'이고 숫자 또는 '.'이 들어오면 대체
-        if cur == "0":
-            if text.isdigit():
+
+        if self._waiting_for_new or cur == "0":
+            if text == ".":
+                self.display.setText("0.")
+            elif text.isdigit():
                 self.display.setText(text)
-                return
-            if text == ".":
-                self.display.setText("0.")
-                return
-
-            self.display.setText(cur + text)
-            return
-
-        # 새 입력 시작(operator 이후) 
-        if self._waiting_for_new:
-            if text == ".":
-                self.display.setText("0.")
             else:
-                self.display.setText(text)
+                return
             self._waiting_for_new = False
             return
 
-        # 연속된 '.' 방지(현재 마지막 토큰이 소수점 포함이면 무시)
-        if text == ".":
-            if self._current_number_has_dot(cur):
-                return
+        if text == "." and "." in cur: # 연속 dot 방지
+            return
 
-        self.display.setText(cur + text)
+        if text.isdigit() or text == ".":
+            self.display.setText(cur + text)
 
     def _on_operator(self, op):
         cur = self.display.text()
@@ -192,7 +179,6 @@ class Calculator(QWidget):
 
     def _calculate(self, left, right, op):
         try:
-            getcontext().prec = 15 # 정밀도를 소수점 자리까지 설정
             if op == "+":
                 return self.add(left, right)
             elif op == "-":
@@ -206,29 +192,32 @@ class Calculator(QWidget):
         except Exception:
             return "Error"
     
-    def add(self, left, right) -> Decimal:
-        return Decimal(left) + Decimal(right)
+    def add(self, left, right):
+        return (left) + (right)
 
-    def subtract(self, left, right) -> Decimal:
-        return Decimal(left) - Decimal(right)
+    def subtract(self, left, right):
+        return (left) - (right)
     
-    def multiply(self, left, right) -> Decimal:
-        return Decimal(left) * Decimal(right)
+    def multiply(self, left, right):
+        return (left) * (right)
     
-    def divide(self, left, right) -> Decimal:
-        return Decimal(left) / Decimal(right)   
+    def divide(self, left, right):
+        return (left) / (right)   
 
     def _format_result(self, value):
         if isinstance(value, str):
             return value
         try:
             fval = float(value)
-            if int(fval) == fval:
-                return str(int(fval))
-            else:
-                return f"{fval:.15g}"
         except Exception:
             return str(value)
+
+        if abs(fval) >= 1e14:
+            return f"{fval:.14e}"
+        elif abs(fval) < 1e-15:
+            return str(0)
+        else:
+            return f"{fval:.14g}"
 
     def negative_positive(self):
         s = self.display.text()
@@ -239,13 +228,6 @@ class Calculator(QWidget):
         else:
             s = "-" + s
         self.display.setText(s)
-
-    def _current_number_has_dot(self, text: str) -> bool:
-        tokens = re.split(r"[÷×−+\%]", text)
-        if not tokens:
-            return False
-        last = tokens[-1]
-        return "." in last
 
 
 def main():
