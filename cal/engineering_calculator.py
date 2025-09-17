@@ -323,11 +323,13 @@ class Calculator(QWidget):
             fval = float(value)
         except Exception:
             return str(value)
-        if abs(fval) < 1e-15:
-            fval = 0.0
-        if int(fval) == fval:
-            return str(int(fval))
-        return f"{fval:.12g}"
+
+        if abs(fval) >= 1e14:
+            return f"{fval:.14e}"
+        elif abs(fval) < 1e-15:
+            return str(0)
+        else:
+            return f"{fval:.14g}"
 
 
 def main():
