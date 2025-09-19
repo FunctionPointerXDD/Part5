@@ -11,7 +11,7 @@ from multiprocessing import Process, Lock
 import multiprocessing as mp
 
 ZIPFILE = "emergency_storage_key.zip"
-ALPHABET_DIGIT = string.ascii_lowercase + string.digits # 자리수 36개
+ALPHABET_DIGIT = (string.ascii_lowercase + string.digits).encode('utf-8') # 자리수 36개
 LENGTH = 6
 N = 36 ** LENGTH
 PROCS = 6
@@ -19,15 +19,15 @@ STOP = mp.Event()
 
 _cnt = 0
 
-def gen_code(x: int):
+def gen_code(x: int) -> bytes:
     base = len(ALPHABET_DIGIT)
-    code = []
+    code = bytearray(LENGTH)
 
-    for _ in range(LENGTH):
+    for pos in range(LENGTH - 1, -1, -1): # 뒤에서부터 채우기 (LENGTH-1, LENGTH-2, ..., 0)
         x, r = divmod(x, base) # ALPHABET_DIGIT을 36진법으로 해석
-        code.append(ALPHABET_DIGIT[r])
+        code[pos] = ALPHABET_DIGIT[r]
 
-    return reversed(code)
+    return bytes(code)
 
 def unlock_zip(pid, lock):
     global _cnt
@@ -49,17 +49,17 @@ def unlock_zip(pid, lock):
             now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             start = time.time()
             idx = int(N / PROCS * pid)
-            for i in range(idx, N):
+            end = int(N /PROCS * (pid + 1))
+            for i in range(idx, end):
                 if STOP.is_set():
                     os._exit(1)
-                candidate = gen_code(i)
                 cur = time.time()
                 lapsed = round((cur - start), 2)
 
                 with lock:
                     _cnt += 1
 
-                password = "".join(candidate).encode('utf-8')   
+                password = gen_code(i)
                 try:
                     ret = zf.read(target_file, pwd=password)
                     if ret:

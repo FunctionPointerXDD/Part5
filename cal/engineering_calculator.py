@@ -3,7 +3,6 @@
 
 import math
 import sys
-from decimal import Decimal, getcontext
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QLineEdit, QSizePolicy
 )
@@ -28,16 +27,25 @@ class Calculator(QWidget):
         self._operator = None
         self._waiting_for_new = True
         self.display.setText("0")
+        self.process_display.setText("")
 
     # ---------- UI ----------
     def init_ui(self):
         root = QVBoxLayout(self)
 
+        # 연산 과정 표시용 (상단, 회색, 작은 글씨)
+        self.process_display = QLineEdit()
+        self.process_display.setReadOnly(True)
+        self.process_display.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.process_display.setText("")
+        self.process_display.setStyleSheet("font-size: 18px; padding: 4px 16px 0px 16px; border: none; background:#000; color:#aaa;")
+        root.addWidget(self.process_display)
+
         self.display = QLineEdit()
         self.display.setReadOnly(True)
         self.display.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.display.setText("0")
-        self.display.setStyleSheet("font-size:18px; padding:12px; background:#111; color:#fff; border:none;")
+        self.display.setStyleSheet("font-size:36px; padding:12px; background:#111; color:#fff; border:none;")
         root.addWidget(self.display)
 
         grid = QGridLayout()
@@ -65,7 +73,7 @@ class Calculator(QWidget):
                     continue
 
                 btn = QPushButton(label)
-                btn.setMinimumSize(56, 48)
+                btn.setMinimumSize(80, 60)
                 btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
                 operator_col = {"÷", "x", "-", "+", "="}
@@ -82,7 +90,7 @@ class Calculator(QWidget):
                     btn.setStyleSheet("background:#242424; color:#fff; border:none; border-radius:16px; font-size:18px; padding:10px;")
 
                 # connect button
-                if label in {"+", "-", "x", "÷"}:
+                if label in {"+", "-", "x", "÷", "ʸ√x"}:
                     btn.clicked.connect(self._input_wrapper(label))
                 elif label in digits:
                     btn.clicked.connect(self._input_wrapper(label))
@@ -112,6 +120,16 @@ class Calculator(QWidget):
                     btn.clicked.connect(self.insert_pi)
                 elif label == "e":
                     btn.clicked.connect(self.insert_e)
+                elif label == "1/x":
+                    btn.clicked.connect(self.inverse)
+                elif label == "²√x":
+                    btn.clicked.connect(self.square_root)
+                elif label == "³√x":
+                    btn.clicked.connect(self.cube_root)
+                elif label == "ln":
+                    btn.clicked.connect(self.natural_log)
+                elif label == "log₁₀":
+                    btn.clicked.connect(self.log_base_10)
                 elif label == "AC":
                     btn.clicked.connect(self.reset_state)
                 elif label == "Deg":
@@ -134,7 +152,7 @@ class Calculator(QWidget):
         return _wrapper
 
     def on_input(self, text: str):
-        if text in {"+", "-", "x", "÷"}:
+        if text in {"+", "-", "x", "÷", "ʸ√x"}:
             self._on_operator(text)
             return
 
@@ -217,6 +235,47 @@ class Calculator(QWidget):
         x = self._get_current_value()
         self.display.setText(self._format_result(x * x * x))
         self._waiting_for_new = True
+    
+    def inverse(self):
+        x = self._get_current_value()
+        if x == 0:
+            self.display.setText("Error")
+        else:
+            self.display.setText(self._format_result(1 / x))
+        self._waiting_for_new = True
+    
+    def square_root(self):
+        x = self._get_current_value()
+        if x < 0:
+            self.display.setText("Error")
+        else:
+            self.display.setText(self._format_result(math.sqrt(x)))
+        self._waiting_for_new = True
+    
+    def cube_root(self):
+        x = self._get_current_value()
+        if x >= 0:
+            self.display.setText(self._format_result(x ** (1/3)))
+        else:
+            self.display.setText(self._format_result(-(-x) ** (1/3)))
+        self._waiting_for_new = True
+    
+    
+    def natural_log(self):
+        x = self._get_current_value()
+        if x <= 0:
+            self.display.setText("Error")
+        else:
+            self.display.setText(self._format_result(math.log(x)))
+        self._waiting_for_new = True
+    
+    def log_base_10(self):
+        x = self._get_current_value()
+        if x <= 0:
+            self.display.setText("Error")
+        else:
+            self.display.setText(self._format_result(math.log10(x)))
+        self._waiting_for_new = True
 
     def insert_pi(self):
         self._insert_number(math.pi)
@@ -225,11 +284,7 @@ class Calculator(QWidget):
         self._insert_number(math.e)
 
     def _insert_number(self, num: float):
-        txt = self._format_result(num)
-        if self._waiting_for_new or self.display.text() == "0":
-            self.display.setText(txt)
-        else:
-            self.display.setText(txt)
+        self.display.setText(self._format_result(num))
         self._waiting_for_new = False
 
     # Angle mode toggle (button shows the other mode)
@@ -260,36 +315,42 @@ class Calculator(QWidget):
             s = "-" + s
         self.display.setText(s)
 
-    # ---------- binary operations (sequential) ----------
+# ---------- binary operations ----------
     def _on_operator(self, op_symbol: str):
 
         cur_val = self._get_current_value()
 
         if self._operator is not None and not self._waiting_for_new:
-            # chain previous pending op
             res = self._calculate(self._operand, cur_val, self._operator)
+            if res == "Error":
+                self.process_display.setText("")
+                self.display.setText("Error")
+                self._operand = None
+                self._operator = None
+                self._waiting_for_new = True
+                return
             self.display.setText(self._format_result(res))
-            self._operand = float(res) if not isinstance(res, str) else 0.0
+            self._operand = res
         else:
             self._operand = cur_val
 
         self._operator = op_symbol
         self._waiting_for_new = True
+        self.process_display.setText(f"{self._format_result(self._operand)} {op_symbol}")
 
     def equal(self):
         if self._operator is None or self._operand is None:
             return
         right = self._get_current_value()
         result = self._calculate(self._operand, right, self._operator)
+        self.process_display.setText(f"{self._format_result(self._operand)} {self._operator} {self._format_result(right)} =")
         self.display.setText(self._format_result(result))
         self._operand = None
         self._operator = None
         self._waiting_for_new = True
 
-    # ---------- arithmetic (Decimal) ----------
     def _calculate(self, left, right, op):
         try:
-            getcontext().prec = 15
             if op == "+":
                 return self.add(left, right)
             elif op == "-":
@@ -300,20 +361,35 @@ class Calculator(QWidget):
                 if right == 0:
                     return "Error"
                 return self.divide(left, right)
+            elif op == "ʸ√x":
+                if right == 0:
+                    return "Error"
+                return self.y_root(left, right)
         except Exception:
             return "Error"
 
-    def add(self, left, right) -> Decimal:
-        return Decimal(left) + Decimal(right)
+    def y_root(self, x, y):
+        if y == 0:
+            return "Error"
+        elif x >= 0:
+            return x ** (1/y)
+        else:
+            if int(y) != y or int(y) % 2 == 0:
+                return "Error"
+            else:
+                return -(-x) ** (1/y)
 
-    def subtract(self, left, right) -> Decimal:
-        return Decimal(left) - Decimal(right)
+    def add(self, left, right) -> float | str:
+        return left + right
 
-    def multiply(self, left, right) -> Decimal:
-        return Decimal(left) * Decimal(right)
+    def subtract(self, left, right) -> float | str:
+        return left - right
 
-    def divide(self, left, right) -> Decimal:
-        return Decimal(left) / Decimal(right)
+    def multiply(self, left, right) -> float | str:
+        return left * right
+
+    def divide(self, left, right) -> float | str:
+        return left / right
 
     # ---------- formatting ----------
     def _format_result(self, value):
