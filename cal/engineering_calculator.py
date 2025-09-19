@@ -7,11 +7,12 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QGridLayout, QPushButton, QVBoxLayout, QLineEdit, QSizePolicy
 )
 from PyQt5.QtCore import Qt
+from calculator import Calculator
 
 
-class Calculator(QWidget):
+class EngineeringCalculator(Calculator):
     def __init__(self):
-        super().__init__()
+        QWidget.__init__(self)
         self.setWindowTitle("Engineering Calculator")
         self.angle_mode = "Rad"  # or "Deg"
         self._angle_btn = None
@@ -130,6 +131,8 @@ class Calculator(QWidget):
                     btn.clicked.connect(self.natural_log)
                 elif label == "log₁₀":
                     btn.clicked.connect(self.log_base_10)
+                elif label == "x!":
+                    btn.clicked.connect(self.factorial)
                 elif label == "AC":
                     btn.clicked.connect(self.reset_state)
                 elif label == "Deg":
@@ -180,23 +183,29 @@ class Calculator(QWidget):
         except Exception:
             return 0.0
 
+    def factorial(self):
+        x = self._get_current_value()
+        val = math.factorial(int(x))
+        self.display.setText(self._format_result(val))
+        self._waiting_for_new = False
+
     def func_sin(self):
         x = self._get_current_value()
         val = math.sin(math.radians(x)) if self.angle_mode == "Deg" else math.sin(x)
         self.display.setText(self._format_result(val))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def func_cos(self):
         x = self._get_current_value()
         val = math.cos(math.radians(x)) if self.angle_mode == "Deg" else math.cos(x)
         self.display.setText(self._format_result(val))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def func_tan(self):
         x = self._get_current_value()
         val = math.tan(math.radians(x)) if self.angle_mode == "Deg" else math.tan(x)
         self.display.setText(self._format_result(val))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def func_sinh(self):
         # Hyperbolic functions do not use Deg/Rad; they take the raw value.
@@ -206,7 +215,7 @@ class Calculator(QWidget):
         except Exception:
             val = "Error"
         self.display.setText(self._format_result(val))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def func_cosh(self):
         x = self._get_current_value()
@@ -215,7 +224,7 @@ class Calculator(QWidget):
         except Exception:
             val = "Error"
         self.display.setText(self._format_result(val))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def func_tanh(self):
         x = self._get_current_value()
@@ -224,17 +233,17 @@ class Calculator(QWidget):
         except Exception:
             val = "Error"
         self.display.setText(self._format_result(val))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def square(self):
         x = self._get_current_value()
         self.display.setText(self._format_result(x * x))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def cube(self):
         x = self._get_current_value()
         self.display.setText(self._format_result(x * x * x))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
     
     def inverse(self):
         x = self._get_current_value()
@@ -242,7 +251,7 @@ class Calculator(QWidget):
             self.display.setText("Error")
         else:
             self.display.setText(self._format_result(1 / x))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
     
     def square_root(self):
         x = self._get_current_value()
@@ -250,7 +259,7 @@ class Calculator(QWidget):
             self.display.setText("Error")
         else:
             self.display.setText(self._format_result(math.sqrt(x)))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
     
     def cube_root(self):
         x = self._get_current_value()
@@ -258,7 +267,7 @@ class Calculator(QWidget):
             self.display.setText(self._format_result(x ** (1/3)))
         else:
             self.display.setText(self._format_result(-(-x) ** (1/3)))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
     
     
     def natural_log(self):
@@ -267,7 +276,7 @@ class Calculator(QWidget):
             self.display.setText("Error")
         else:
             self.display.setText(self._format_result(math.log(x)))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
     
     def log_base_10(self):
         x = self._get_current_value()
@@ -275,7 +284,7 @@ class Calculator(QWidget):
             self.display.setText("Error")
         else:
             self.display.setText(self._format_result(math.log10(x)))
-        self._waiting_for_new = True
+        self._waiting_for_new = False
 
     def insert_pi(self):
         self._insert_number(math.pi)
@@ -301,7 +310,7 @@ class Calculator(QWidget):
         try:
             val = float(self.display.text())
             self.display.setText(self._format_result(val / 100.0))
-            self._waiting_for_new = True
+            self._waiting_for_new = False
         except Exception:
             pass
 
@@ -410,10 +419,11 @@ class Calculator(QWidget):
 
 def main():
     app = QApplication(sys.argv)
-    w = Calculator()
+    w = EngineeringCalculator()
     w.show()
     sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
     main()
+
