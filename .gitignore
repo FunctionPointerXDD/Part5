@@ -173,4 +173,12 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
+# Vosk / 모델류
+vosk-model*/
+models/
+*.onnx
+*.bin
+*.pt
+*.zip
+
 # End of https://www.toptal.com/developers/gitignore/api/python
