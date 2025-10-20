@@ -112,9 +112,10 @@ def unlock_zip_main():
 
 # 카이사르 암호는 영문자를 특정 숫자 만큼 모두 양의 값만큼 옮겨서(shift) 만드는 암호다.
 # 따라서 반대로 옮겨진 값만큼 이동시켜서 의미있는 문장인지 확인하면 된다.
-def caesar_cipher_decode(target_text: str):
-    alphabet = string.ascii_uppercase
+alphabet = string.ascii_uppercase
 
+def caesar_cipher_decode(target_text: str) -> list:
+    code_list = []
     for shift in range(len(alphabet)):  # 0 ~ 25
         decoded = ""
         for char in target_text:
@@ -125,6 +126,9 @@ def caesar_cipher_decode(target_text: str):
             else:
                 decoded += char
         print(f"[Shift {shift}] {decoded}")
+        code_list.append(decoded)
+    
+    return code_list
 
 def caesar_cipher_main():
     try:
@@ -132,18 +136,10 @@ def caesar_cipher_main():
             encrypted_text = f.read().strip()
 
         print("암호화된 문자열:", encrypted_text)
-        caesar_cipher_decode(encrypted_text)
+        candidated = caesar_cipher_decode(encrypted_text)
 
         shift_num = int(input("\n정답이라고 생각되는 Shift 번호를 입력하세요: "))
-
-        final_result = ""
-        for char in encrypted_text:
-            if char.isalpha():
-                is_upper = char.isupper()
-                base = ord('A') if is_upper else ord('a')
-                final_result += chr((ord(char) - base - shift_num) % 26 + base)
-            else:
-                final_result += char
+        final_result = candidated[shift_num]
 
         with open("result.txt", "w", encoding="utf-8") as f:
             f.write(final_result)
@@ -154,8 +150,8 @@ def caesar_cipher_main():
         print(f"[caesar] Error: {e}")
 
 def main():
-    unlock_zip_main()
-    #caesar_cipher_main()
+    #unlock_zip_main()
+    caesar_cipher_main()
 
 if __name__ == "__main__":
     main()

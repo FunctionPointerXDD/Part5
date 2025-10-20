@@ -28,6 +28,7 @@ def default_samplerate(device: int | None) -> int:
 
 def record_once():
     device = sd.default.device[0]
+    print("[안내] 기본 마이크 장치 ID:", device)
     if device is None:
         print("[오류] 입력 가능한 마이크 장치를 찾지 못했습니다.")
         return
@@ -42,8 +43,9 @@ def record_once():
     try:
         devinfo: Any | dict[str, Any] = sd.query_devices(device, 'input')
         print(f"[장치] {devinfo.get('name')} / 채널={devinfo.get('max_input_channels')} / 기본 SR={int(devinfo.get('default_samplerate', sr))}")
-    except Exception:
-        pass
+    except Exception as e:
+        print("[경고] 장치 정보를 가져오는 중 오류 발생:", e)
+        os._exit(1)
 
     # 파이썬에서 제공하는 큐로 사용자 입력과 녹음 기능을 안전하게 분리할 수 있다. 큐 내부적으로 write할 때 락 기능 제공!
     q = queue.Queue()
