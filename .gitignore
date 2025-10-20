@@ -181,4 +181,9 @@ models/
 *.pt
 *.zip
 
+*.jpg
+*.png
+*.CSV
+*.wav
+
 # End of https://www.toptal.com/developers/gitignore/api/python
