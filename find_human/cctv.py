@@ -1,6 +1,5 @@
 from pathlib import Path
 import tkinter as tk
-from tkinter import Label
 from PIL import Image, ImageTk, UnidentifiedImageError
 from zipfile import ZipFile, BadZipFile
 import cv2
@@ -27,41 +26,6 @@ def extract_zipfile():
     except Exception as e:
         print(f"Error: {e}")
 
-
-def create_hog_with_people_detector() -> cv2.HOGDescriptor:
-    hog = cv2.HOGDescriptor()
-
-    # 1) 가장 흔한 모듈 함수 형태
-    getters = [
-        getattr(cv2, "HOGDescriptor_getDefaultPeopleDetector", None),
-        # 2) 드물지만 정적 메서드 형태로 노출되는 빌드
-        getattr(getattr(cv2, "HOGDescriptor", None), "getDefaultPeopleDetector", None),
-        # 3) 폴백: Daimler detector (특성이 조금 다름)
-        getattr(cv2, "HOGDescriptor_getDaimlerPeopleDetector", None),
-    ]
-
-    weights = None
-    for getter in getters:
-        if getter is None:
-            continue
-        try:
-            w = getter()
-            if w is not None:
-                w = np.asarray(w, dtype=np.float32)  # dtype 보정
-                if w.size > 0:
-                    weights = w
-                    break
-        except Exception:
-            continue
-
-    if weights is None:
-        raise RuntimeError(
-            "OpenCV 빌드에서 기본 보행자 SVM 가중치를 찾지 못했습니다. "
-            "opencv-python 패키지를 업그레이드 해보세요 (예: pip install -U opencv-python)."
-        )
-
-    hog.setSVMDetector(weights)
-    return hog
 
 class ImageLabel(tk.Label):
     _photo: ImageTk.PhotoImage | None = None
@@ -95,7 +59,8 @@ class MasImageHelper:
         self.root.bind("<Escape>", lambda e: self.root.destroy())
         self.root.bind("q", lambda e: self.root.destroy())
 
-        self.hog = create_hog_with_people_detector()
+        self.hog = cv2.HOGDescriptor()
+        self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
 
     def _fit_to_screen(self, img: Image.Image) -> Image.Image:
